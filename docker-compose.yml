@@ -1,0 +1,34 @@
+services:
+  inventory-service:
+    build:
+      context: .
+      dockerfile: services/inventory_service/Dockerfile
+    container_name: inventory-service
+    ports:
+      - "8001:8001"
+
+  reservation-service:
+    build:
+      context: .
+      dockerfile: services/reservation_service/Dockerfile
+    container_name: reservation-service
+    depends_on:
+      - inventory-service
+    environment:
+      INVENTORY_SERVICE_URL: http://inventory-service:8001
+    ports:
+      - "8002:8002"
+
+  gateway-service:
+    build:
+      context: .
+      dockerfile: services/gateway_service/Dockerfile
+    container_name: gateway-service
+    depends_on:
+      - inventory-service
+      - reservation-service
+    environment:
+      INVENTORY_SERVICE_URL: http://inventory-service:8001
+      RESERVATION_SERVICE_URL: http://reservation-service:8002
+    ports:
+      - "8000:8000"

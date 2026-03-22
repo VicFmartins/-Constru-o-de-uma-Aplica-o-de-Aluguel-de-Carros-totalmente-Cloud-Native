@@ -1,97 +1,135 @@
-# -Constru-o-de-uma-Aplica-o-de-Aluguel-de-Carros-totalmente-Cloud-Native
+# Aplicacao de Aluguel de Carros Cloud-Native
 
-Arquitetura de Referência
-Microsserviços:
+Este repositório deixou de ser apenas um resumo conceitual e virou um MVP executável de arquitetura cloud-native para aluguel de carros. A solução foi montada como um monorepo com três microsserviços, comunicação HTTP entre serviços, empacotamento com Docker, exemplo de deploy em Kubernetes e pipeline de CI com GitHub Actions.
 
-Inventário: Gerencia disponibilidade e detalhes dos veículos (marca, modelo, preço).
+## O que o projeto entrega
 
-Reservas: Controla agendamentos, check-in/check-out e políticas de cancelamento.
+- `inventory-service`: catálogo de carros e controle de disponibilidade
+- `reservation-service`: criação e cancelamento de reservas
+- `gateway-service`: ponto de entrada para consumo da plataforma
+- `docker-compose.yml`: ambiente local para subir tudo com um comando
+- `infra/k8s`: manifests para demonstrar deploy em Kubernetes
+- `.github/workflows/ci.yml`: pipeline para rodar testes automaticamente
 
-Pagamentos: Integra gateways (ex: Stripe, Adyen) e valida transações.
+## Arquitetura
 
-Notificações: Envia confirmações via e-mail/SMS usando serviços como SendGrid ou Amazon SES.
+```mermaid
+flowchart LR
+    Client["Cliente / Frontend"] --> Gateway["Gateway Service"]
+    Gateway --> Inventory["Inventory Service"]
+    Gateway --> Reservations["Reservation Service"]
+    Reservations --> Inventory
+```
 
-Orquestração:
+## Stack
 
-Kubernetes (EKS/AKS/GKE) para gerenciamento de contêineres.
+- Python 3.11
+- FastAPI
+- SQLite para persistência local de demonstração
+- Docker e Docker Compose
+- Kubernetes manifests
+- GitHub Actions
 
-Service Mesh (Istio/Linkerd) para controle de tráfego entre microsserviços.
+## Como executar localmente
 
-Banco de Dados:
+### Opcao 1: com Docker Compose
 
-PostgreSQL ou MySQL no Cloud SQL (GCP) ou Azure Database.
+```bash
+docker compose up --build
+```
 
-Redis/Memcached para cache de consultas frequentes (ex: disponibilidade de veículos).
+Serviços disponíveis:
 
-Event Streaming:
+- Gateway: `http://localhost:8000`
+- Inventory: `http://localhost:8001/docs`
+- Reservations: `http://localhost:8002/docs`
 
-Apache Kafka ou Azure Event Hubs para processar eventos em tempo real (ex: reserva confirmada, pagamento aprovado).
+### Opcao 2: sem Docker
 
-Passo a Passo para Implementação
-Empacotamento em Contêineres:
+```bash
+pip install -r requirements.txt
+uvicorn services.inventory_service.app:app --reload --port 8001
+uvicorn services.reservation_service.app:app --reload --port 8002
+uvicorn services.gateway_service.app:app --reload --port 8000
+```
 
-Crie um Dockerfile para cada microsserviço.
+## Endpoints principais
 
-text
-FROM node:18  
-WORKDIR /app  
-COPY package*.json ./  
-RUN npm install  
-COPY . .  
-CMD ["npm", "start"]  
-Registre as imagens no Azure Container Registry ou Amazon ECR.
+### Gateway
 
-Infraestrutura como Código (IaC):
+- `GET /catalog`
+- `POST /reservations`
+- `GET /reservations`
+- `POST /reservations/{reservation_id}/cancel`
+- `GET /dashboard`
 
-Use Terraform ou AWS CDK para provisionar recursos:
+### Inventory
 
-text
-resource "aws_ecs_cluster" "car_rental" {  
-  name = "car-rental-cluster"  
-}  
-Pipeline CI/CD:
+- `GET /cars`
+- `GET /cars/{car_id}`
+- `POST /internal/cars/{car_id}/hold`
+- `POST /internal/cars/{car_id}/release`
 
-Automatize testes e deploy com GitHub Actions ou Azure DevOps:
+### Reservations
 
-text
-jobs:  
-  deploy:  
-    runs-on: ubuntu-latest  
-    steps:  
-      - uses: azure/aks-set-context@v2  
-        with:  
-          cluster-name: 'my-aks-cluster'  
-Segurança:
+- `GET /reservations`
+- `POST /reservations`
+- `POST /reservations/{reservation_id}/cancel`
 
-Use Azure API Management ou AWS API Gateway para exigir chaves de assinatura e JWT.
+## Exemplo de reserva
 
-Armazene segredos (tokens, credenciais) no Azure Key Vault ou AWS Secrets Manager.
+```json
+POST /reservations
+{
+  "customer_name": "Maria Souza",
+  "customer_document": "12345678900",
+  "car_id": "car-001",
+  "pickup_city": "Sao Paulo",
+  "start_date": "2030-05-10",
+  "end_date": "2030-05-13"
+}
+```
 
-Monitoramento:
+## Kubernetes
 
-Configure métricas e logs no Azure Monitor ou Amazon CloudWatch.
+Os manifests em `infra/k8s` mostram uma versão inicial de deploy com:
 
-Implemente alertas para falhas de pagamento ou picos de tráfego.
+- namespace dedicado
+- deployments para os 3 serviços
+- services internos para comunicação
+- `LoadBalancer` no gateway
+- probes de readiness e liveness
 
-Exemplo de Caso Real (Kovi - AWS)
-A startup Kovi  escalou para 10 mil motoristas usando:
+Aplicação:
 
-AWS Lambda para processar 900 milhões de requisições/mês a custo otimizado.
+```bash
+kubectl apply -f infra/k8s/namespace.yaml
+kubectl apply -f infra/k8s/inventory.yaml
+kubectl apply -f infra/k8s/reservations.yaml
+kubectl apply -f infra/k8s/gateway.yaml
+```
 
-DynamoDB para armazenar dados de contratos e pagamentos.
+## Testes
 
-Amazon SQS para filas de cobrança automatizadas.
+```bash
+pytest
+```
 
-Benefícios Cloud-Native
-Escalabilidade automática: Ajuste recursos conforme a demanda (ex: feriados).
+Os testes cobrem a lógica principal de inventário e reservas, incluindo bloqueio e devolução de unidades.
 
-Resiliência: Recuperação automática de falhas via Kubernetes.
+## Diferenciais para portfólio
 
-Custo eficiente: Pague apenas pelo uso (ex: serverless para funções esporádicas).
+- arquitetura distribuída simples, mas funcional
+- separação clara de responsabilidades
+- health checks
+- persistência local por serviço
+- pipeline de CI
+- base pronta para evoluir para banco gerenciado, mensageria e autenticação
 
-Ferramentas Recomendadas
-Categoria	Ferramentas
-Orchestration	Kubernetes, OpenShift
-Observability	Prometheus, Grafana
-Banco de Dados	Cosmos DB, Amazon Aurora
-Autenticação	Azure AD, Amazon Cognito
+## Proximos passos recomendados
+
+- trocar SQLite por PostgreSQL
+- adicionar autenticação JWT no gateway
+- publicar imagens em registry
+- incluir observabilidade com Prometheus e Grafana
+- evoluir o fluxo de reserva para eventos assíncronos
